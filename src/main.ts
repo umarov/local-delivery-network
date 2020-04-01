@@ -1,5 +1,6 @@
 import * as fastify from 'fastify';
 import { Server, IncomingMessage, ServerResponse } from 'http';
+import fs from 'fs';
 
 const server: fastify.FastifyInstance<
   Server,
@@ -46,6 +47,46 @@ server.get('/:client', async (request, reply) => {
     reply.type('application/json').code(200);
 
     return { timestamp: new Date(), [client]: existingClient };
+  } else {
+    reply.code(404);
+
+    return {};
+  }
+});
+
+server.get('/:client/*', async (request, reply) => {
+  const { client } = request.params;
+
+  const existingClient = clients.get(client);
+
+  if (existingClient) {
+    const filePath = request.params['*'];
+    const pathFromClient = existingClient.files.find(
+      (file) => file === filePath
+    );
+
+    if (!pathFromClient) {
+      reply.code(404);
+      return {};
+    }
+
+    if (pathFromClient.endsWith('.js')) {
+      reply.type('text/javascript').code(200);
+    } else if (pathFromClient.endsWith('.css')) {
+      reply.type('text/css').code(200);
+    } else if (pathFromClient.endsWith('.json')) {
+      reply.type('application/json').code(200);
+    } else if (pathFromClient.endsWith('.html')) {
+      reply.type('text/html').code(200);
+    } else if (pathFromClient.endsWith('.css')) {
+      reply.type('text/css').code(200);
+    }
+
+    const stream = fs.createReadStream(
+      `${existingClient.path}/${pathFromClient}`,
+      'utf8'
+    );
+    reply.send(stream);
   } else {
     reply.code(404);
 
