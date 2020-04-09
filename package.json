@@ -2,11 +2,12 @@
   "name": "local-delivery-network",
   "version": "0.0.1",
   "description": "Server to serve static files from local projects",
-  "main": "src/main.js",
+  "main": "dist/main.js",
   "type": "module",
   "scripts": {
     "test": "npm run test",
-    "start": "nodemon"
+    "start": "nodemon",
+    "build": "tsc"
   },
   "repository": {
     "type": "git",

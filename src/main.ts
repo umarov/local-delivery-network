@@ -86,6 +86,7 @@ server.get('/:client/*', async (request, reply) => {
       `${existingClient.path}/${pathFromClient}`,
       'utf8'
     );
+
     reply.send(stream);
   } else {
     reply.code(404);
@@ -94,7 +95,7 @@ server.get('/:client/*', async (request, reply) => {
   }
 });
 
-server.listen(3000, (err, address) => {
+server.listen(+(process.env.PORT || 3000), (err, address) => {
   if (err) throw err;
   server.log.info(`server listening on ${address}`);
 });

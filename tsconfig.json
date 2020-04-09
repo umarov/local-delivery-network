@@ -11,9 +11,7 @@
     "noImplicitAny": true,
     "sourceMap": true,
     "baseUrl": ".",
-    "types": [
-      "webpack-env"
-    ],
+    "outDir": "dist",
     "lib": [
       "esnext",
       "dom",
