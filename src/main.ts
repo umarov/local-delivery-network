@@ -1,6 +1,8 @@
 import * as fastify from 'fastify';
 import { Server, IncomingMessage, ServerResponse } from 'http';
 import fs from 'fs';
+import { determineMimeType } from './content-type';
+import { ClientDetails } from './client-types';
 
 const server: fastify.FastifyInstance<
   Server,
@@ -8,11 +10,9 @@ const server: fastify.FastifyInstance<
   ServerResponse
 > = fastify.default({ logger: true });
 
-type clientDetails = { path: string; files: string[] };
+const clients = new Map<string, ClientDetails>();
 
-const clients = new Map<string, clientDetails>();
-
-const serializeClients = (): { [x: string]: clientDetails }[] => {
+const serializeClients = (): { [x: string]: ClientDetails }[] => {
   const clientsToReturn = [];
 
   for (const [key, value] of clients.entries()) {
@@ -22,10 +22,10 @@ const serializeClients = (): { [x: string]: clientDetails }[] => {
   return clientsToReturn;
 };
 
-server.get('/', async (request, reply) => {
+server.get('/', async (_, reply) => {
   reply.type('application/json').code(200);
 
-  return { timestamp: new Date(), projects: serializeClients() };
+  return { projects: serializeClients() };
 });
 
 server.post('/register', async (request, reply) => {
@@ -35,7 +35,7 @@ server.post('/register', async (request, reply) => {
   const { name, path, files } = request.body.client;
   clients.set(name, { path, files });
 
-  return { timestamp: new Date(), projects: serializeClients() };
+  return { projects: serializeClients() };
 });
 
 server.get('/:client', async (request, reply) => {
@@ -46,7 +46,7 @@ server.get('/:client', async (request, reply) => {
   if (existingClient) {
     reply.type('application/json').code(200);
 
-    return { timestamp: new Date(), [client]: existingClient };
+    return { [client]: existingClient };
   } else {
     reply.code(404);
 
@@ -61,29 +61,27 @@ server.get('/:client/*', async (request, reply) => {
 
   if (existingClient) {
     const filePath = request.params['*'];
-    const pathFromClient = existingClient.files.find(
-      (file) => file === filePath
+    const file = existingClient.files.find(
+      ({ name }) => name === filePath || name.endsWith(filePath)
     );
 
-    if (!pathFromClient) {
+    if (!file) {
       reply.code(404);
       return {};
     }
 
-    if (pathFromClient.endsWith('.js')) {
-      reply.type('text/javascript').code(200);
-    } else if (pathFromClient.endsWith('.css')) {
-      reply.type('text/css').code(200);
-    } else if (pathFromClient.endsWith('.json')) {
-      reply.type('application/json').code(200);
-    } else if (pathFromClient.endsWith('.html')) {
-      reply.type('text/html').code(200);
-    } else if (pathFromClient.endsWith('.css')) {
-      reply.type('text/css').code(200);
+    const { name } = file;
+
+    const mimeType = determineMimeType(name);
+
+    if (mimeType) {
+      reply.type(mimeType);
     }
 
+    reply.code(200);
+
     const stream = fs.createReadStream(
-      `${existingClient.path}/${pathFromClient}`,
+      `${existingClient.path}/${name}`,
       'utf8'
     );
 

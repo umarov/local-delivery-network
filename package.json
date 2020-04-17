@@ -6,7 +6,9 @@
   "type": "module",
   "scripts": {
     "test": "npm run test",
-    "start": "nodemon",
+    "serve": "nodemon",
+    "start": "ts-node src/main.ts",
+    "inspect": "node -r ts-node/register --inspect src/main.ts",
     "build": "tsc"
   },
   "repository": {
