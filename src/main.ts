@@ -2,7 +2,12 @@ import * as fastify from 'fastify';
 import { Server, IncomingMessage, ServerResponse } from 'http';
 import fs from 'fs';
 import { determineMimeType } from './content-type';
-import { ClientDetails } from './client-types';
+import { ClientDetails, ClientDetailsJSON } from './client-types';
+import {
+  serializeClientDetails,
+  createNewClientDetails,
+  updateClientFileManifest
+} from './client';
 
 const server: fastify.FastifyInstance<
   Server,
@@ -12,11 +17,11 @@ const server: fastify.FastifyInstance<
 
 const clients = new Map<string, ClientDetails>();
 
-const serializeClients = (): { [x: string]: ClientDetails }[] => {
+const serializeClients = (): { [x: string]: ClientDetailsJSON }[] => {
   const clientsToReturn = [];
 
   for (const [key, value] of clients.entries()) {
-    clientsToReturn.push({ [key]: value });
+    clientsToReturn.push({ [key]: serializeClientDetails(value) });
   }
 
   return clientsToReturn;
@@ -30,12 +35,19 @@ server.get('/', async (_, reply) => {
 
 server.post('/register', async (request, reply) => {
   reply.type('application/json').code(200);
-  server.log.info(request.body);
 
   const { name, path, files } = request.body.client;
-  clients.set(name, { path, files });
 
-  return { projects: serializeClients() };
+  server.log.info(`${name} is being registered with ${path} path:`);
+  server.log.info(files);
+
+  const client = clients.get(name) || createNewClientDetails(name, path);
+
+  updateClientFileManifest(client, files);
+
+  clients.set(name, client);
+
+  return serializeClientDetails(client);
 });
 
 server.get('/:client', async (request, reply) => {
@@ -60,28 +72,26 @@ server.get('/:client/*', async (request, reply) => {
   const existingClient = clients.get(client);
 
   if (existingClient) {
-    const filePath = request.params['*'];
-    const file = existingClient.files.find(
-      ({ name }) => name === filePath || name.endsWith(filePath)
-    );
+    const fileSubPath = request.params['*'];
+    const fileName = fileSubPath.split('/').pop();
+    const file = existingClient.filePaths.get(fileName);
 
     if (!file) {
       reply.code(404);
       return {};
     }
 
-    const { name } = file;
-
-    const mimeType = determineMimeType(name);
+    const mimeType = determineMimeType(file);
 
     if (mimeType) {
+      server.log.info(mimeType);
       reply.type(mimeType);
     }
 
     reply.code(200);
 
     const stream = fs.createReadStream(
-      `${existingClient.path}/${name}`,
+      `${existingClient.path}/${fileSubPath}`,
       'utf8'
     );
 
