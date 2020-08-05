@@ -22,7 +22,7 @@
   },
   "homepage": "https://github.com/umarov/local-delivery-network#readme",
   "dependencies": {
-    "fastify": "^2.13.0"
+    "fastify": "^2.15.1"
   },
   "devDependencies": {
     "@types/node": "^13.9.8",
