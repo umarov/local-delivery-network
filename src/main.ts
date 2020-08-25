@@ -1,19 +1,19 @@
-import * as fastify from 'fastify';
-import { Server, IncomingMessage, ServerResponse } from 'http';
+import fastify, { FastifyInstance } from 'fastify';
 import fs from 'fs';
 import { determineMimeType } from './content-type';
-import { ClientDetails, ClientDetailsJSON } from './client-types';
+import { ClientDetails, ClientDetailsJSON, ClientFile } from './client-types';
 import {
   serializeClientDetails,
   createNewClientDetails,
   updateClientFileManifest
 } from './client';
 
-const server: fastify.FastifyInstance<
-  Server,
-  IncomingMessage,
-  ServerResponse
-> = fastify.default({ logger: true });
+const server: FastifyInstance = fastify({ logger: true });
+
+const baseDir = process.env.BASE_DIR;
+
+const monoRepoMode = !!baseDir;
+const aggregatedMode = !!process.env.AGGREGATED;
 
 const clients = new Map<string, ClientDetails>();
 
@@ -33,7 +33,9 @@ server.get('/', async (_, reply) => {
   return { projects: serializeClients() };
 });
 
-server.post('/register', async (request, reply) => {
+server.post<{
+  Body: { client: { name: string; path: string; files: ClientFile[] } };
+}>('/register', async (request, reply) => {
   reply.type('application/json').code(200);
 
   const { name, path, files } = request.body.client;
@@ -50,58 +52,111 @@ server.post('/register', async (request, reply) => {
   return serializeClientDetails(client);
 });
 
-server.get('/:client', async (request, reply) => {
-  const { client } = request.params;
+server.get<{ Params: { client: string } }>(
+  '/:client',
+  async (request, reply) => {
+    const { client } = request.params;
 
-  const existingClient = clients.get(client);
+    if (monoRepoMode) {
+      try {
+        const path = aggregatedMode
+          ? `${baseDir}/dist/${client}`
+          : `${baseDir}/${client}/dist`;
+        const dir = await fs.promises.opendir(path);
+        const files = [];
+        for await (const dirent of dir) {
+          files.push(dirent.name);
+        }
 
-  if (existingClient) {
-    reply.type('application/json').code(200);
+        reply.type('application/json').code(200);
 
-    return { [client]: existingClient };
-  } else {
-    reply.code(404);
+        return { [client]: files };
+      } catch (err) {
+        reply.code(404);
 
-    return {};
-  }
-});
+        return {};
+      }
+    } else {
+      const existingClient = clients.get(client);
 
-server.get('/:client/*', async (request, reply) => {
-  const { client } = request.params;
+      if (existingClient) {
+        reply.type('application/json').code(200);
 
-  const existingClient = clients.get(client);
+        return { [client]: existingClient };
+      } else {
+        reply.code(404);
 
-  if (existingClient) {
-    const fileSubPath = request.params['*'];
-    const fileName = fileSubPath.split('/').pop();
-    const file = existingClient.filePaths.get(fileName);
-
-    if (!file) {
-      reply.code(404);
-      return {};
+        return {};
+      }
     }
-
-    const mimeType = determineMimeType(file);
-
-    if (mimeType) {
-      server.log.info(mimeType);
-      reply.type(mimeType);
-    }
-
-    reply.code(200);
-
-    const stream = fs.createReadStream(
-      `${existingClient.path}/${fileSubPath}`,
-      'utf8'
-    );
-
-    reply.send(stream);
-  } else {
-    reply.code(404);
-
-    return {};
   }
-});
+);
+
+server.get<{ Params: { client: string; ['*']: string } }>(
+  '/:client/*',
+  async (request, reply) => {
+    const { client } = request.params;
+
+    if (monoRepoMode) {
+      try {
+        const path = aggregatedMode
+          ? `${baseDir}/dist/${client}`
+          : `${baseDir}/${client}/dist`;
+        const fileSubPath = request.params['*'];
+        const file = `${path}/${fileSubPath}`;
+
+        const mimeType = determineMimeType(file);
+
+        if (mimeType) {
+          server.log.info(mimeType);
+          reply.type(mimeType);
+        }
+
+        reply.code(200);
+
+        const stream = fs.createReadStream(file, 'utf8');
+
+        reply.send(stream);
+      } catch (err) {
+        reply.code(404);
+        return {};
+      }
+    } else {
+      const existingClient = clients.get(client);
+
+      if (existingClient) {
+        const fileSubPath = request.params['*'];
+        const fileName = fileSubPath.split('/').pop();
+        const file = fileName && existingClient.filePaths.get(fileName);
+
+        if (!file) {
+          reply.code(404);
+          return {};
+        }
+
+        const mimeType = determineMimeType(file);
+
+        if (mimeType) {
+          server.log.info(mimeType);
+          reply.type(mimeType);
+        }
+
+        reply.code(200);
+
+        const stream = fs.createReadStream(
+          `${existingClient.path}/${fileSubPath}`,
+          'utf8'
+        );
+
+        reply.send(stream);
+      } else {
+        reply.code(404);
+
+        return {};
+      }
+    }
+  }
+);
 
 server.listen(+(process.env.PORT || 3000), (err, address) => {
   if (err) throw err;
