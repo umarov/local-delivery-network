@@ -1,27 +1,4 @@
-import { ClientFile, ClientDetails, ClientDetailsJSON } from './client-types';
-
-export function createNewClientDetails(
-  name: string,
-  path: string
-): ClientDetails {
-  return {
-    name,
-    path,
-    filePaths: new Map<string, string>()
-  };
-}
-
-export function updateClientFileManifest(
-  client: ClientDetails,
-  clientFiles: ClientFile[]
-): ClientDetails {
-  for (const { name, path } of clientFiles) {
-    const cleanedName = name.split('/').pop() || name;
-    client.filePaths.set(cleanedName, path);
-  }
-
-  return client;
-}
+import { ClientDetails, ClientDetailsJSON } from './client-types';
 
 export function serializeClientDetails({
   name,
