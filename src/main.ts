@@ -1,6 +1,7 @@
 import fastify, { FastifyInstance } from 'fastify';
 import fs from 'fs';
 import { determineMimeType } from './content-type';
+import path from 'path';
 
 const server: FastifyInstance = fastify({ logger: true });
 
@@ -16,13 +17,58 @@ if (!enabled) {
   );
   process.exit(1);
 }
+type subDirFolder = { [key: string]: subDir };
+type subDir = (string | subDirFolder)[];
+
+async function getDirectoryDetails(
+  currentPath: string,
+  dir: fs.Dir
+): Promise<subDir> {
+  const subDirs: subDir = [];
+  for await (const dirent of dir) {
+    if (dirent.isDirectory()) {
+      const subdirPath = path.join(currentPath, dirent.name);
+      const subdir = await fs.promises.opendir(subdirPath);
+      subDirs.push({
+        [dirent.name]: await getDirectoryDetails(subdirPath, subdir)
+      });
+    } else {
+      subDirs.push(dirent.name);
+    }
+  }
+
+  return subDirs;
+}
 
 server.get('/', async (_, reply) => {
   reply.type('application/json').code(200);
 
+  const apps: subDirFolder = {};
+
+  if (baseDir) {
+    const dir = await fs.promises.opendir(
+      aggregatedMode ? path.join(baseDir, 'dist') : baseDir
+    );
+    for await (const dirent of dir) {
+      const subdirPath = aggregatedMode
+        ? path.join(baseDir, 'dist', dirent.name)
+        : path.join(baseDir, dirent.name, 'dist');
+
+      if (dirent.name !== 'dist') {
+        apps[dirent.name] = [];
+        const subdir = await fs.promises.opendir(subdirPath);
+
+        apps[dirent.name].push(
+          ...(await getDirectoryDetails(subdirPath, subdir))
+        );
+      }
+    }
+  }
+
   return {
     baseDir,
-    aggregatedMode
+    aggregatedMode,
+    apps
   };
 });
 
@@ -84,7 +130,8 @@ server.get<{ Params: { client: string; ['*']: string } }>(
 );
 
 server.listen(
-  +(process.env.PORT || 3000, process.env.HOST || '0.0.0.0'),
+  +(process.env.PORT || 3000),
+  process.env.HOST || '0.0.0.0',
   (err, address) => {
     if (err) throw err;
     server.log.info(`server listening on ${address}`);
