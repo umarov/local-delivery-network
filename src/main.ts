@@ -78,14 +78,11 @@ server.get<{ Params: { client: string } }>(
     const { client } = request.params;
 
     try {
-      const path = aggregatedMode
+      const appPath = aggregatedMode
         ? `${baseDir}/dist/${client}`
         : `${baseDir}/${client}/dist`;
-      const dir = await fs.promises.opendir(path);
-      const files = [];
-      for await (const dirent of dir) {
-        files.push(dirent.name);
-      }
+      const dir = await fs.promises.opendir(appPath);
+      const files = await getDirectoryDetails(appPath, dir)
 
       reply.type('application/json').code(200);
 
