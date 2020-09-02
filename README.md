@@ -14,7 +14,7 @@ npm run start
 
 ### API
 
-#### GET `/`: Returns all the clients stored
+#### GET `/`: Returns all the apps stored
 
 ```json
 // http://localhost:3000
@@ -62,7 +62,7 @@ npm run start
 }
 ```
 
-#### GET `/:client`: Shows all the client files and assets
+#### GET `/:app`: Shows all the app files and assets
 
 ```json
 // http://localhost:3000/app1
@@ -88,13 +88,12 @@ npm run start
 }
 ```
 
-#### GET `/:client/*`: Serves the files in the client manifest with the correct mime-type
+#### GET `/:app/*`: Serves the files in the app manifest with the correct mime-type
 
 ```html
 <!-- http://localhost:3000/app1/index.html -->
 <!DOCTYPE html><html lang=en><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1"><link rel=icon href=/favicon.ico><title>app1</title><link href=/css/app.fb0c6e1c.css rel=preload as=style><link href=/js/app.73959a66.js rel=preload as=script><link href=/js/chunk-vendors.b06ef9f7.js rel=preload as=script><link href=/css/app.fb0c6e1c.css rel=stylesheet></head><body><noscript><strong>We're sorry but app1 doesn't work properly without JavaScript enabled. Please enable it to continue.</strong></noscript><div id=app></div><script src=/js/chunk-vendors.b06ef9f7.js></script><script src=/js/app.73959a66.js></script></body></html>
 ```
-
 
 ## Performance
 
