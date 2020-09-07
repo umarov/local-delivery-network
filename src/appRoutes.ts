@@ -27,11 +27,16 @@ export function setupAllAppsRoute(server: FastifyInstance): void {
 
         if (dirent.name !== 'dist') {
           apps[dirent.name] = [];
-          const subdir = await fs.promises.opendir(subdirPath);
 
-          apps[dirent.name].push(
-            ...(await getDirectoryDetails(subdirPath, subdir))
-          );
+          try {
+            const subdir = await fs.promises.opendir(subdirPath);
+
+            apps[dirent.name].push(
+              ...(await getDirectoryDetails(subdirPath, subdir))
+            );
+          } catch (err) {
+            server.log.info(`${subdirPath} does not exist`)
+          }
         }
       }
     }
